@@ -89,7 +89,7 @@ NOTES
 - Help with streamlit https://docs.streamlit.io/get-started/installation/command-line
 - If your recorded demonstrations are saved in the VM’s root filesystem, they may not be accessible from Windows. To          resolve this, create a shared folder between the VM and your Windows machine, then move the demonstration files into that   shared directory. Once placed there, the files should be accessible from both environments and the workflow should          function correctly.
 - A shared folder has been added that contains a couple of demonstration data files
-   These recordings can be used to test the tool’s functionality (visualisation, segmentation, and comparison).
+- These recordings can be used to test the tool’s functionality (visualisation, segmentation, and comparison).
 
 -----------------------------------------------------------
 """
