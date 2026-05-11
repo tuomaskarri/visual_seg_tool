@@ -443,70 +443,89 @@ if uploaded_file:
         else:
             st.warning("AUTO is missing phases")
 
-        # Boundary error (timing accuracy)
-        st.subheader("Boundary Error (Timing Accuracy)")
+       # Boundary error (start times)
+        st.subheader("Boundary Error (Phase Start Times)")
 
-        def get_boundaries(segments, df):
+        def get_phase_starts(segments, df):
             """
-            Convert segment indices into timestamp boundaries.
-            Returns list of (start_time, end_time)
+            Returns list of dictionaries:
+            {
+                "phase": phase_name,
+                "start_time": timestamp
+            }
             """
-            boundaries = []
+            starts = []
+
             for seg in segments:
-                start_t = df["timestamp"].iloc[seg["start"]]
-                end_t = df["timestamp"].iloc[seg["end"]]
-                boundaries.append((start_t, end_t))
-            return boundaries
+                starts.append({
+                    "phase": seg["phase"],
+                    "start_time": df["timestamp"].iloc[seg["start"]]
+                })
+            return starts
 
-        # Extract boundaries
-        auto_bounds = get_boundaries(auto_segments, df)
-        manual_bounds = get_boundaries(st.session_state.segments, df)
+        # Extract start times
+        auto_starts = get_phase_starts(auto_segments, df)
+        manual_starts = get_phase_starts(st.session_state.segments, df)
 
-        # Compare segments by index (simple assumption)
-        min_len = min(len(auto_bounds), len(manual_bounds))
+        # Ignore "approach" because it always starts correctly
+        auto_starts = [s for s in auto_starts if s["phase"] != "approach"]
+        manual_starts = [s for s in manual_starts if s["phase"] != "approach"]
 
-        start_errors = []
-        end_errors = []
+        min_len = min(len(auto_starts), len(manual_starts))
 
-        # Compute absolute time differences (ms)
+        phase_errors = []
+
         for i in range(min_len):
-            a_start, a_end = auto_bounds[i]
-            m_start, m_end = manual_bounds[i]
+            auto_phase = auto_starts[i]["phase"]
+            manual_phase = manual_starts[i]["phase"]
 
-            start_errors.append(abs(a_start - m_start))
-            end_errors.append(abs(a_end - m_end))
+            auto_time = auto_starts[i]["start_time"]
+            manual_time = manual_starts[i]["start_time"]
 
-        if start_errors:
-            mean_start_error = np.mean(start_errors)
-            mean_end_error = np.mean(end_errors)
+            error_ms = abs(auto_time - manual_time)
 
-            st.metric("Avg Start Error (ms)", f"{mean_start_error:.1f}")
-            st.metric("Avg End Error (ms)", f"{mean_end_error:.1f}")
+            phase_errors.append({
+                "Phase": manual_phase,
+                "AUTO start": auto_time,
+                "MANUAL start": manual_time,
+                "Error (ms)": error_ms
+            })
 
-            # Visualize errors per segment
+        # Create dataframe
+        error_df = pd.DataFrame(phase_errors)
+
+        if not error_df.empty:
+
+            # Mean error
+            mean_error = error_df["Error (ms)"].mean()
+
+            st.metric("Average Start Error (ms)", f"{mean_error:.1f}")
+
+            st.subheader("Phase Start Errors")
+
+            # Show table
+            st.dataframe(error_df, use_container_width=True)
+
+            # Visualize errors
             fig_error = go.Figure()
+
             fig_error.add_trace(go.Bar(
-                y=[f"Seg {i}" for i in range(min_len)],
-                x=start_errors,
-                name="Start error",
-                orientation='h'
-            ))
-            fig_error.add_trace(go.Bar(
-                y=[f"Seg {i}" for i in range(min_len)],
-                x=end_errors,
-                name="End error",
-                orientation='h'
+                x=error_df["Error (ms)"],
+                y=error_df["Phase"],
+                orientation='h',
+                name="Start Error"
             ))
 
             fig_error.update_layout(
-                title="Boundary Errors per Segment (ms)",
-                barmode="group"
-             )
+                title="Phase Start Time Errors (ms)",
+                xaxis_title="Error (ms)",
+                yaxis_title="Phase"
+            )
 
             st.plotly_chart(fig_error, use_container_width=True)
 
         else:
-            st.info("Not enough segments to compute boundary error")
+            st.info("Not enough segments to compute start-time error")
 
         # Sample-by-sample agreement
         agreement = (df["auto_phase"] == df["phase"])
